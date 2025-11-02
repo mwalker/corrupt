@@ -12,8 +12,8 @@ parser.add_argument('-o', '--output', type=argparse.FileType('wb'),
         default=sys.stdout.buffer, action='store',
         help='output filename. defaults to stdout')
 parser.add_argument('-n', action='store', type=str, default=None,
-        help='''average good bits per error, or percentage with %% suffix.
-                e.g., -n 1000000 for 1 error per million bits, -n 0.001%% for 0.001%% error rate''')
+        help='''average good bits per error, percentage with %% suffix, or bit error rate in scientific notation.
+                e.g., -n 1000000, -n 0.001%%, -n 10e-6 for 0.00001 bit error rate''')
 parser.add_argument('-s', action='store', type=str, default=None,
         help='''sector-based error rate: number or percentage with %% suffix.
                 e.g., -s 10 for 1 bad sector per 10 sectors, -s 5%% for 5%% of sectors corrupted''')
@@ -30,6 +30,8 @@ parser.add_argument('-g', '--garbage', action='store', type=int, default=0,
         help='add G bytes of garbage at the end of the file')
 parser.add_argument('-a', '--ascii', action='store_true',
         help='assume ASCII input and enforce ASCII output')
+parser.add_argument('-d', '--debug', action='store_true',
+        help='print debug information')
 args = parser.parse_args()
 
 # Parse error rate: convert percentage or sectors to good bits per error
@@ -58,6 +60,12 @@ elif args.n is not None:
         if error_rate_percent <= 0:
             parser.error('Error rate percentage must be positive')
         n = int(100 / error_rate_percent)
+    elif 'e' in args.n.lower():
+        # Scientific notation - interpret as bit error rate
+        bit_error_rate = float(args.n)
+        if bit_error_rate <= 0 or bit_error_rate > 1:
+            parser.error('Bit error rate must be between 0 and 1')
+        n = int(1.0 / bit_error_rate)
     else:
         n = int(args.n)
         if n <= 0:
@@ -65,6 +73,14 @@ elif args.n is not None:
 else:
     # Default to 1 error per 1 million bits
     n = 1000000
+
+if args.debug:
+    bit_error_rate = 1.0 / n
+    print(f'Debug: n = {n} (average good bits per error)', file=sys.stderr)
+    if bit_error_rate < 0.0001:
+        print(f'Debug: bit error rate = {bit_error_rate:.2e}', file=sys.stderr)
+    else:
+        print(f'Debug: bit error rate = {bit_error_rate:.10f}', file=sys.stderr)
 
 CHUNK = 4096
 cstart = 0
